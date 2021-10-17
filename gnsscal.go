@@ -23,7 +23,7 @@
 // 'gnsscal' - Command similar to 'cal', but also print GNSS week, doy.
 // inspired by gpscal created by Dr. Yuki Hatanaka.
 
-package gnsscal
+package main
 
 import (
 	"flag"
