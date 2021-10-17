@@ -28,7 +28,7 @@ const (
 )
 
 type gnssCal struct {
-	SatSys    string
+	SatSys    SatSys
 	Highlight bool
 	RefDate   time.Time
 	Layout    calLayout
@@ -42,6 +42,16 @@ const (
 	Layout1Month calLayout = iota
 	Layout3Month
 	Layout1Year
+)
+
+type SatSys string
+
+const (
+	SYSGPS SatSys = "GPS"
+	SYSGLO SatSys = "GLO"
+	SYSGAL SatSys = "GAL"
+	SYSQZS SatSys = "QZS"
+	SYSBDS SatSys = "BDS"
 )
 
 // flags
@@ -94,7 +104,7 @@ func getCalWithOpt() (cal gnssCal, err error) {
 
 	// default opt
 	cal = gnssCal{
-		SatSys:    "GPS",
+		SatSys:    SYSGPS,
 		Highlight: true,
 		RefDate:   today,
 		Layout:    Layout1Month,
@@ -148,17 +158,20 @@ func getCalWithOpt() (cal gnssCal, err error) {
 	// flags
 	switch flagSatsys {
 	case "GPS":
-		cal.SatSys = "GPS"
+		cal.SatSys = SYSGPS
 		cal.SysTime0 = GPST0
 	case "QZS":
-		cal.SatSys = "QZS"
+		cal.SatSys = SYSQZS
 		cal.SysTime0 = QZSST0
 	case "BDS":
-		cal.SatSys = "BDS"
+		cal.SatSys = SYSBDS
 		cal.SysTime0 = BDT0
 	case "GAL":
-		cal.SatSys = "GAL"
+		cal.SatSys = SYSGAL
 		cal.SysTime0 = GST0
+	case "GLO":
+		cal.SatSys = SYSGLO
+		cal.SysTime0 = leapYearDate(cal.RefDate) // Glonass week starts from the first day of leap year
 	default:
 		fmt.Printf("unknown SatSys: '%s'. use GPST instead.\n", flagSatsys)
 	}
@@ -206,61 +219,51 @@ func (c gnssCal) OneMonthLayout() (msg []string) {
 	return gnssCalMonth(refDate.Year(), refDate.Month(), today, highlight, c.SysTime0)
 }
 
-//func (c gnssCal) oneYearLayout(refDate, today time.Time, highlight bool) (msg []string) {
 func (c gnssCal) OneYearLayout() (msg []string) {
 	year := c.RefDate.Year()
 	today := c.Today
-	refDate1, hl1 := time.Date(year, 2, 1, 0, 0, 0, 0, time.UTC), false
-	refDate2, hl2 := time.Date(year, 5, 1, 0, 0, 0, 0, time.UTC), false
-	refDate3, hl3 := time.Date(year, 8, 1, 0, 0, 0, 0, time.UTC), false
-	refDate4, hl4 := time.Date(year, 11, 1, 0, 0, 0, 0, time.UTC), false
-
-	// highlight opt
-	if c.Highlight && year == today.Year() {
-		if int(today.Month()) < 4 {
-			refDate1, hl1 = c.Today, true
-		} else if int(c.Today.Month()) < 7 {
-			refDate2, hl2 = today, true
-		} else if int(today.Month()) < 10 {
-			refDate3, hl3 = today, true
-		} else {
-			refDate4, hl4 = today, true
-		}
-	}
+	refDate1 := time.Date(year, 2, 1, 0, 0, 0, 0, time.UTC)
+	refDate2 := time.Date(year, 5, 1, 0, 0, 0, 0, time.UTC)
+	refDate3 := time.Date(year, 8, 1, 0, 0, 0, 0, time.UTC)
+	refDate4 := time.Date(year, 11, 1, 0, 0, 0, 0, time.UTC)
 
 	// stack 4 rows
-	msg = append(msg, threeMonthLayout(refDate1, today, hl1, c.SysTime0)...)
+	msg = append(msg, threeMonthLayout(refDate1, today, c.Highlight, c.SysTime0, c.SatSys)...)
 	msg = append(msg, "")
-	msg = append(msg, threeMonthLayout(refDate2, today, hl2, c.SysTime0)...)
+	msg = append(msg, threeMonthLayout(refDate2, today, c.Highlight, c.SysTime0, c.SatSys)...)
 	msg = append(msg, "")
-	msg = append(msg, threeMonthLayout(refDate3, today, hl3, c.SysTime0)...)
+	msg = append(msg, threeMonthLayout(refDate3, today, c.Highlight, c.SysTime0, c.SatSys)...)
 	msg = append(msg, "")
-	msg = append(msg, threeMonthLayout(refDate4, today, hl4, c.SysTime0)...)
+	msg = append(msg, threeMonthLayout(refDate4, today, c.Highlight, c.SysTime0, c.SatSys)...)
 
 	return msg
 }
 
 func (c gnssCal) ThreeMonthLayout() (msg []string) {
-	refDate := c.RefDate
-	today := c.Today
-	highlight := c.Highlight
-	return threeMonthLayout(refDate, today, highlight, c.SysTime0)
+	return threeMonthLayout(c.RefDate, c.Today, c.Highlight, c.SysTime0, c.SatSys)
 }
 
-func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time.Time) (msg []string) {
+func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time.Time, satSys SatSys) (msg []string) {
 	// for three-month layout
 	msgc := gnssCalMonth(refDate.Year(), refDate.Month(), today, highlight, initialDate)
+
+	var msgl, msgr []string
 	lastmonth := firstDayOfLastMonth(refDate)
 	nextmonth := firstDayOfNextMonth(refDate)
-	msgl := gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, initialDate)
-	msgn := gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, initialDate)
+	if satSys == SYSGLO {
+		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, leapYearDate(lastmonth))
+		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, leapYearDate(nextmonth))
+	} else {
+		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, initialDate)
+		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, initialDate)
+	}
 
 	// check number of lines
 	N := len(msgl)
 	if len(msgc) > N {
 		N = len(msgc)
 	}
-	if len(msgn) > N {
+	if len(msgr) > N {
 		N = len(msgc)
 	}
 
@@ -283,8 +286,8 @@ func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time
 		buf += fmt.Sprintf("    ")
 
 		// right side
-		if len(msgn) > i {
-			buf += fmt.Sprintf("%-34s", msgn[i])
+		if len(msgr) > i {
+			buf += fmt.Sprintf("%-34s", msgr[i])
 		} else {
 			buf += fmt.Sprintf("%34s", "")
 		}
@@ -316,7 +319,6 @@ func gnssCalMonth(year int, month time.Month, today time.Time, highlight bool, i
 	for date := firstDay; date.Before(lastDay); date = date.Add(oneDay) {
 		if date.Equal(firstDay) || date.Weekday() == time.Sunday {
 			// calculate GNSS week
-			//bufday += fmt.Sprintf("%4d  ", gnssWeek(date, GPST0))
 			bufday += fmt.Sprintf("%4d  ", gnssWeek(date, initialDate))
 			bufdoy += "      "
 			for i := 0; i < int(date.Weekday()); i++ {
@@ -355,6 +357,17 @@ func doy(date time.Time) int {
 
 func gnssWeek(date time.Time, initialDate time.Time) int {
 	return int(date.Sub(initialDate).Seconds() / oneWeek.Seconds())
+}
+
+func gloWeek(date time.Time) int {
+	return gnssWeek(date, leapYearDate(date))
+}
+
+func leapYearDate(date time.Time) time.Time {
+	year := date.Year()
+	leapYear := year - year%4
+
+	return time.Date(leapYear, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
 func firstDayOfNextMonth(date time.Time) time.Time {
