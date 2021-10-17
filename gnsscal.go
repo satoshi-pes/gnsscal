@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2021 Satoshi Kawamoto <satoshi.pes@gmail.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 package main
 
 import (
@@ -90,7 +112,7 @@ Flags:
   -h        help for gnsscal
   -n        turns off highlight of today [default: highlight on]
   -3        three-month layout that displays previous, current and next months
-  -satsys   referenced satellite system of GNSS week to be shown
+  -satsys   satellite system of GNSS week; 'GPS', 'QZS', 'GAL', 'BDS', or 'GLO' [default: GPS]
 
   Created by Satoshi Kawamoto <satoshi.pes@gmail.com> October 16, 2021
   Inspired by 'gpscal' created by Dr. Yuki Hatanaka
@@ -214,9 +236,7 @@ func (c gnssCal) String() string {
 
 func (c gnssCal) OneMonthLayout() (msg []string) {
 	refDate := c.RefDate
-	today := c.Today
-	highlight := c.Highlight
-	return gnssCalMonth(refDate.Year(), refDate.Month(), today, highlight, c.SysTime0)
+	return gnssCalMonth(refDate.Year(), refDate.Month(), c.Today, c.Highlight, c.SysTime0, c.SatSys)
 }
 
 func (c gnssCal) OneYearLayout() (msg []string) {
@@ -243,19 +263,19 @@ func (c gnssCal) ThreeMonthLayout() (msg []string) {
 	return threeMonthLayout(c.RefDate, c.Today, c.Highlight, c.SysTime0, c.SatSys)
 }
 
-func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time.Time, satSys SatSys) (msg []string) {
+func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time.Time, sys SatSys) (msg []string) {
 	// for three-month layout
-	msgc := gnssCalMonth(refDate.Year(), refDate.Month(), today, highlight, initialDate)
+	msgc := gnssCalMonth(refDate.Year(), refDate.Month(), today, highlight, initialDate, sys)
 
 	var msgl, msgr []string
 	lastmonth := firstDayOfLastMonth(refDate)
 	nextmonth := firstDayOfNextMonth(refDate)
-	if satSys == SYSGLO {
-		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, leapYearDate(lastmonth))
-		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, leapYearDate(nextmonth))
+	if sys == SYSGLO {
+		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, leapYearDate(lastmonth), sys)
+		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, leapYearDate(nextmonth), sys)
 	} else {
-		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, initialDate)
-		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, initialDate)
+		msgl = gnssCalMonth(lastmonth.Year(), lastmonth.Month(), today, highlight, initialDate, sys)
+		msgr = gnssCalMonth(nextmonth.Year(), nextmonth.Month(), today, highlight, initialDate, sys)
 	}
 
 	// check number of lines
@@ -303,7 +323,11 @@ func threeMonthLayout(refDate, today time.Time, highlight bool, initialDate time
 // 'year', 'month' specify the month to be shown.
 // If 'highlight' is true, 'today' is highlighted.
 // GNSS week is calculated based on the 'initialDate'.
-func gnssCalMonth(year int, month time.Month, today time.Time, highlight bool, initialDate time.Time) (msg []string) {
+//
+// Note that the initialDate may not start from Sunday for GLONASS.
+// So the week numbers are calculated at first day of the month and
+// Sundays, and the same week numbers could be printed.
+func gnssCalMonth(year int, month time.Month, today time.Time, highlight bool, initialDate time.Time, sys SatSys) (msg []string) {
 	var bufday, bufdoy string
 
 	// prepare
@@ -312,14 +336,18 @@ func gnssCalMonth(year int, month time.Month, today time.Time, highlight bool, i
 
 	// print header
 	head := fmt.Sprintf("%s %4d", month.String(), year)
-	msg = append(msg, fmt.Sprintf(fmt.Sprintf("%%%ds", 20+len(head)/2), head)) // centering message
+	msg = append(msg, fmt.Sprintf(fmt.Sprintf("%%s%%%ds", 17+len(head)/2), sys, head)) // centering message
 	msg = append(msg, "Week   Sun Mon Tue Wed Thu Fri Sat")
 
 	// print dates
 	for date := firstDay; date.Before(lastDay); date = date.Add(oneDay) {
 		if date.Equal(firstDay) || date.Weekday() == time.Sunday {
 			// calculate GNSS week
-			bufday += fmt.Sprintf("%4d  ", gnssWeek(date, initialDate))
+			if date.Before(initialDate) {
+				bufday += "      "
+			} else {
+				bufday += fmt.Sprintf("%4d  ", gnssWeek(date, initialDate))
+			}
 			bufdoy += "      "
 			for i := 0; i < int(date.Weekday()); i++ {
 				bufday += "    "
