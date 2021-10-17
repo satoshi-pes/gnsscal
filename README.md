@@ -66,4 +66,4 @@ It's easy to install gnsscal. Simply get and install the package:
     go install github.com/satoshi-pes/gnsscal@latest
 
 # License
-gnsscal is released under the MIT license. See [LICENSE.txt](https://github.com/satoshi-pes/gnsscal/blob/master/LICENSE.txt)
+gnsscal is released under the MIT license. See [LICENSE.txt](https://github.com/satoshi-pes/gnsscal/blob/main/LICENSE)
