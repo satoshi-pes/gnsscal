@@ -363,7 +363,7 @@ func gnssCalMonth(year int, month time.Month, today time.Time, highlight bool, i
 		} else {
 			bufday += fmt.Sprintf("  %2d", date.Day())
 		}
-		bufdoy += fmt.Sprintf(" %3d", doy(date))
+		bufdoy += fmt.Sprintf(" %03d", doy(date))
 
 		if date.Weekday() == time.Saturday {
 			msg = append(msg, bufday)
