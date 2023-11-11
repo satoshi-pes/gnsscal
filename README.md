@@ -60,9 +60,12 @@ The system time can be changed specifing '-satsys' flag. Other layout, e.g. thre
                                                  304
 
 # Installing
-It's easy to install gnsscal. Simply get and install the package:
+## Pre-built binaries
+Pre-built binaries are available on the [releases](https://github.com/satoshi-pes/gnsscal/releases/tag/v1.0.0) page.
 
-    go get -u github.com/satoshi-pes/gnsscal  
+## Install from source
+Install the latest version:
+
     go install github.com/satoshi-pes/gnsscal@latest
 
 # License
